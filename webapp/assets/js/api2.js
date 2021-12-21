@@ -53,12 +53,24 @@ var MSTREAMAPI = (function () {
     makeRequest(url, "POST", dataObject, callback);
   }
 
+  function makePUTRequest(url, dataObject, callback) {
+    makeRequest(url, "PUT", dataObject, callback);
+  }
+
   function makeGETRequest(url, dataObject, callback) {
     makeRequest(url, "GET", dataObject, callback);
   }
 
   mstreamModule.dirparser = function (directory, callback) {
     makePOSTRequest('api/v1/file-explorer', { directory: directory }, callback);
+  }
+
+  mstreamModule.scanFile = function (filepath, callback) {
+    makePOSTRequest('api/v1/upload/meta', { filepath: filepath }, callback);
+  }
+
+  mstreamModule.putMetadata = function (metadata, callback) {
+    makePUTRequest('api/v1/db/metadata', metadata, callback);
   }
 
   mstreamModule.loadFileplaylist = function (path, callback) {
@@ -144,7 +156,6 @@ var MSTREAMAPI = (function () {
   mstreamModule.getRandomSong = function (postObject, callback) {
     makePOSTRequest("api/v1/db/random-songs", postObject, callback);
   }
-
   // Scrobble
   mstreamModule.scrobbleByMetadata = function (artist, album, trackName, callback) {
     makePOSTRequest("api/v1/lastfm/scrobble-by-metadata", { artist: artist, album: album, track: trackName }, callback);

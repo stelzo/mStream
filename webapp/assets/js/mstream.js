@@ -659,6 +659,157 @@ function savePlaylist() {
   });
 }
 
+async function pollMetadata(filepath) {
+  try {
+    const metadata = await awaitMetadata(filepath);
+    return metadata;
+  } catch (e) {
+    setTimeout(() => { pollMetadata(filepath) }, 1000)
+  }
+}
+
+async function awaitMetadata(filepath) {
+  return new Promise((resolve, reject) => {
+    MSTREAMAPI.lookupMetadata(filepath, res => {
+      if (res.metadata == {}) {
+        reject()
+      } else {
+        resolve(res)
+      }
+    })
+  })
+
+}
+
+/////////////// Upload new files
+async function handleFiles(files) {
+
+  let arr = []
+
+  for (let i = 0; i < files.length; i++) {
+    arr.push(new Promise((resolve, reject) => {
+      if (files[i].fullPath) {
+        files[i].directory = getFileExplorerPath() + files[i].fullPath.substring(0, files[i].fullPath.indexOf(files[i].name));
+      } else {
+        files[i].directory = getFileExplorerPath();
+      }
+
+      const apiUrl = '/api/v1/file-explorer/upload';
+
+      let formData = new FormData();
+      formData.append("file", files[i]);
+      const myHeaders = new Headers();
+      myHeaders.append('data-location', encodeURI(files[i].directory));
+      myHeaders.append('x-access-token', MSTREAMAPI.currentServer.token);
+
+      let request = new XMLHttpRequest();
+      request.open('POST', apiUrl);
+
+      // upload progress event
+      request.upload.addEventListener('progress', function(e) {
+        // upload progress as percentage
+        let percent_completed = (e.loaded / e.total)*100;
+        console.log(percent_completed);
+        document.getElementById('filelist').innerHTML = `${percent_completed} % progress`;
+      });
+
+      // request finished event
+      request.addEventListener('load', async function(e) {
+        console.log(request.status);
+        if (request.status == 200) {
+          document.getElementById('filelist').innerHTML = `scanning metadata...`;
+          resolve(files[i])
+        } else {
+          reject();
+        }
+      });
+
+      request.setRequestHeader('data-location', encodeURI(files[i].directory))
+      request.setRequestHeader('x-access-token', MSTREAMAPI.currentServer.token)
+
+      // send POST request to server
+      request.send(formData);
+    }))
+  }
+
+  const filesUploaded = await Promise.all(arr)
+  console.log("all uploaded")
+
+  MSTREAMAPI.scanFile(filesUploaded[0].directory, async (data) => { // files got queued to scan
+    console.log(data)
+    // poll for checking if metadata is there
+    setTimeout(async () => {
+      let arr = []
+      for (const file of filesUploaded) {
+        arr.push(pollMetadata(file.directory + file.name));
+        console.log("pushed metadata")
+
+      }
+
+      const metadatas = await Promise.all(arr);
+
+      const forms = metadatas.map(metadata => {
+        console.log(metadata)
+        return `
+      <label for="artistname">Artist</label>
+      <input type="text" name="artistname" song-hash="${metadata.metadata.hash}" value="${metadata.metadata.artist ? metadata.metadata.artist : ""}"/>
+      
+      <label for="albumname">Album</label>
+      <input type="text" name="albumname" song-hash="${metadata.metadata.hash}" value="${metadata.metadata.album ? metadata.metadata.album : ""}"/>
+      <!-- Album select from own albums or create new one with album-art -->
+      
+      <label for="titlename">Title</label>
+      <input type="text" name="title" song-hash="${metadata.metadata.hash}" value="${metadata.metadata.title ? metadata.metadata.title : ""}"/>
+      
+      <label for="year">Year</label>
+      <input type="number" name="year" song-hash="${metadata.metadata.hash}" value="${metadata.metadata.year ? metadata.metadata.year : ""}"/>
+      `;
+      })
+
+      let htm = `
+        upload success
+        <form onsubmit="updateMetadata(); return false;" id="metadataUpdateForm">
+        `;
+
+        for (f of forms) {
+          htm += f;
+        }
+
+        htm += `<input type="submit" /></form>`;
+
+      document.getElementById('filelist').innerHTML = htm;
+
+      }, 1000) // start polling after 1 second
+  })
+}
+
+function updateMetadata() {
+  const inputs = document.getElementById("metadataUpdateForm").getElementsByTagName("input")
+  let arr = new Object()
+  for (let i = 0; i < inputs.length; i++) {
+    const inp = inputs.item(i);
+    const hash = inp.getAttribute("song-hash")
+    if (arr[hash] == undefined) {
+      arr[hash] = {}
+    }
+    arr[hash][inp.name] = inp.value;
+  }
+
+  MSTREAMAPI.putMetadata(arr, res => {
+    console.log(res)
+  })
+
+  return false;
+}
+
+function getFileUpload(el, cb) {
+  setBrowserRootPanel(el, 'Upload', 'scrollBoxHeight1');
+  document.getElementById('filelist').innerHTML = `
+<input type="file" id="fileinput" multiple onchange="handleFiles(this.files)">
+  `;
+  programState = [{ state: 'uploadFile' }];
+}
+
 /////////////// Artists
 function getAllArtists(el, cb) {
   setBrowserRootPanel(el, 'Artists', 'scrollBoxHeight1');

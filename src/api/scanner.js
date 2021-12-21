@@ -1,6 +1,7 @@
 const winston = require('winston');
 const db = require('../db/manager');
 const config = require('../state/config');
+const scanqueue = require('../db/task-queue')
 
 exports.setup = (mstream) => {
   mstream.all('/api/v1/scanner/*', (req, res, next) => {
@@ -43,6 +44,14 @@ exports.setup = (mstream) => {
 
     db.saveFilesDB();
     res.json({});
+  });
+
+  /**
+   * Scan a path and give back metadata
+   */
+  mstream.post('/api/v1/upload/meta', async (req, res) => {
+    scanqueue.scanVPath(req.body.filepath.replace('/', ''))
+    res.json({})
   });
 
   let saveCounter = 0;

@@ -56,7 +56,9 @@ async function insertEntries(song) {
     "vpath": loadJson.vpath,
     "ts": Math.floor(Date.now() / 1000),
     "sID": loadJson.scanId,
-    "replaygainTrackDb": song.replaygain_track_gain ? song.replaygain_track_gain.dB : null
+    "replaygainTrackDb": song.replaygain_track_gain ? song.replaygain_track_gain.dB : null,
+    "userID": 0,
+    "active": false
   };
 
   await axios({

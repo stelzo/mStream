@@ -81,7 +81,10 @@ exports.setup = (mstream) => {
       return leftData.hash + '-' + req.user.username;
     };
 
-    const result = db.getFileCollection().chain().find({ '$and': [{'filepath': pathInfo.relativePath}, {'vpath': pathInfo.vpath}] }, true)
+    const result = db.getFileCollection().chain().find({ '$and': [
+        {'filepath': pathInfo.relativePath},
+        {'vpath': pathInfo.vpath} // can get metadata from active and not active songs to change it
+      ] }, true)
       .eqJoin(db.getUserMetadataCollection().chain(), leftFun, rightFunDefault, mapFunDefault).data();
 
     if (!result || !result[0]) {
@@ -91,11 +94,36 @@ exports.setup = (mstream) => {
     res.json(renderMetadataObj(result[0]));
   });
 
+  mstream.put('/api/v1/db/metadata', (req, res) => {
+    for (const [hash, formvalues] of Object.entries(req.body)) {
+      let obj = db.getFileCollection().findOne({
+        'hash': hash
+      })
+      if (!obj) {
+        continue;
+      }
+
+      obj.title = formvalues.title;
+      obj.year = parseInt(formvalues.year);
+      obj.album = formvalues.albumname;
+      obj.artist = formvalues.artistname;
+      obj.active = true;
+
+      db.getFileCollection().update(obj);
+    }
+
+    return res.json({});
+  })
+
   mstream.get('/api/v1/db/artists', (req, res) => {
     const artists = { "artists": [] };
     if (!db.getFileCollection()) { res.json(artists); }
-    
-    const results = db.getFileCollection().find(renderOrClause(req.user.vpaths));
+
+    const results = db.getFileCollection().find({
+      '$and': [
+        renderOrClause(req.user.vpaths),
+        {'active': { '$eq': true}}]
+    });
     const store = {};
     for (let row of results) {
       if (!store[row.artist] && !(row.artist === undefined || row.artist === null)) {
@@ -117,7 +145,8 @@ exports.setup = (mstream) => {
     const results = db.getFileCollection().chain().find({
       '$and': [
         renderOrClause(req.user.vpaths),
-        {'artist': { '$eq': String(req.body.artist) }}
+        {'artist': { '$eq': String(req.body.artist) }},
+        {'active': { '$eq': true}}
       ]
     }).simplesort('year', true).data();
 

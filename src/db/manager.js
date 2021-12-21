@@ -73,7 +73,7 @@ exports.initLoki = () => {
     // Get files collection
     fileCollection = filesDB.getCollection('files');
     if (!fileCollection) {
-      fileCollection = filesDB.addCollection("files");
+      fileCollection = filesDB.addCollection("files", {unique: 'hash'});
     }
   });
 
