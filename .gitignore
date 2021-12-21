@@ -32,3 +32,5 @@ frp/*.ini
 dist/*
 
 .env
+
+.idea
